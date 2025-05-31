@@ -1,0 +1,72 @@
+name: Build WindroidUx APK
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    env:
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: 17
+
+    - name: Install Android SDK command-line tools
+      run: |
+        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+        curl -o sdk-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+        unzip sdk-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
+        mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
+        rm sdk-tools.zip
+
+    - name: Install Android SDK packages
+      run: |
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653" "cmake;3.22.1"
+      
+    - name: Add Android SDK tools to PATH
+      run: echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+      shell: bash
+
+
+    - name: Install Rust toolchain and Android target
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        targets: armv7-linux-androideabi
+        override: true
+
+    - name: Build Rust native library
+      run: |
+        cargo build --release --target=armv7-linux-androideabi -p uxception_shell
+
+    - name: Copy native lib to Android jniLibs folder
+      run: |
+        mkdir -p app/src/main/jniLibs/armeabi-v7a
+        cp native/uxception_shell/target/armv7-linux-androideabi/release/libuxception_shell.so app/src/main/jniLibs/armeabi-v7a/
+
+    - name: Install Gradle
+      uses: gradle/actions/setup-gradle@v3
+
+    - name: Build APK using system Gradle
+      working-directory: app
+      run: gradle clean assembleDebug
+
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: WindroidUx-debug-apk
+        path: app/build/outputs/apk/debug/app-debug.apk
