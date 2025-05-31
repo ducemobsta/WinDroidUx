@@ -32,3 +32,8 @@ jobs:
         files: app/build/outputs/apk/debug/app-debug.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+    name: WindroidUx-APK
+    path: app/build/outputs/apk/debug/app-debug.apk
